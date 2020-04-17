@@ -2,7 +2,7 @@
 #include <vector>
 #include <queue>
 
-void check_school(std::vector<int>* distributor_schools, bool* check_schools, std::queue<int>& queue, int& num_checks) {
+void bfs(std::vector<int>* graph, bool* recipients, std::queue<int>& queue) {
     if (queue.empty()) {
         return;
     }
@@ -11,16 +11,15 @@ void check_school(std::vector<int>* distributor_schools, bool* check_schools, st
 
     queue.pop();
 
-    for (int school : distributor_schools[index]) {
-        if (!check_schools[school]) {
-            check_schools[school] = true;
-            num_checks--;
+    for (int num_school : graph[index]) {
+        if (!recipients[num_school]) {
+            recipients[num_school] = true;
 
-            queue.push(school);
+            queue.push(num_school);
         }
     }
 
-    check_school(distributor_schools, check_schools, queue, num_checks);
+    bfs(graph, recipients, queue);
 }
 
 int main() {
@@ -30,79 +29,156 @@ int main() {
     int num_schools;
     in >> num_schools;
 
-    auto* distributor_schools = new std::vector<int>[num_schools];
-    auto* recipient_schools = new std::vector<int>[num_schools];
-    int index_max_size = 0;
-    int max_size = 0;
+    auto* graph = new std::vector<int>[num_schools];
+    auto** distributor_matrix = new bool*[num_schools];
 
     for (int i = 0; i < num_schools; i++) {
+        distributor_matrix[i] = new bool[num_schools]();
+
         int num_school;
         in >> num_school;
-
-        distributor_schools[i].push_back(i);
-        recipient_schools[i].push_back(i);
 
         while (num_school != 0) {
             num_school--;
 
-            distributor_schools[i].push_back(num_school);
-            recipient_schools[num_school].push_back(i);
+            graph[i].push_back(num_school);
 
             in >> num_school;
         }
+    }
 
-        if (max_size < distributor_schools[i].size()) {
-            max_size = distributor_schools[i].size();
-            index_max_size = i;
+    int max_distributor = 0;
+    int index_max_distributor = 0;
+
+    for (int i = 0; i < num_schools; i++) {
+        int num_recipients = 0;
+        std::queue<int> queue;
+        auto* recipients = new bool[num_schools]();
+
+        queue.push(i);
+        recipients[i] = true;
+
+        bfs(graph, recipients, queue);
+
+        for (int j = 0; j < num_schools; j++) {
+            if (recipients[j]) {
+                num_recipients++;
+                distributor_matrix[i][j] = true;
+            }
+        }
+
+        if (max_distributor < num_recipients) {
+            max_distributor = num_recipients;
+            index_max_distributor = i;
         }
     }
 
-    std::vector<int> max_distributor_schools;
-    bool* check_schools = new bool[num_schools]();
-    int num_checks = num_schools - 1;
-    int num_distributor = 1;
-    std::queue<int> queue;
+    int num_recipients = num_schools - max_distributor;
+    auto* recipients = new bool[num_schools]();
+    int num_distributors = 1;
 
-    queue.push(index_max_size);
-    check_schools[index_max_size] = true;
-    max_distributor_schools.push_back(index_max_size);
+    for (int i = 0; i < num_schools; i++) {
+        recipients[i] = distributor_matrix[index_max_distributor][i];
+    }
 
-    check_school(distributor_schools, check_schools, queue, num_checks);
-
-    while (num_checks > 0) {
-        num_distributor++;
-        int *num_distributions = new int[num_schools]();
+    while (num_recipients > 0) {
+        num_distributors++;
+        int* num_useful_recipients = new int[num_schools]();
 
         for (int i = 0; i < num_schools; i++) {
-            if (!check_schools[i]) {
-                for (int school : recipient_schools[i]) {
-                    num_distributions[school]++;
+            if (!recipients[i]) {
+                for (int j = 0; j < num_schools; j++) {
+                    if (distributor_matrix[j][i]) {
+                        num_useful_recipients[j]++;
+                    }
                 }
             }
         }
 
-        index_max_size = 0;
-        max_size = 0;
+        max_distributor = 0;
+        index_max_distributor = 0;
 
         for (int i = 0; i < num_schools; i++) {
-            if (max_size < num_distributions[i]) {
-                max_size = num_distributions[i];
-                index_max_size = i;
+            if (max_distributor < num_useful_recipients[i]) {
+                max_distributor = num_useful_recipients[i];
+                index_max_distributor = i;
             }
         }
 
-        queue.push(index_max_size);
-        check_schools[index_max_size] = true;
-        max_distributor_schools.push_back(index_max_size);
-        num_checks--;
+        for (int i = 0; i < num_schools; i++) {
+            if ((!recipients[i]) && distributor_matrix[index_max_distributor][i]) {
+                recipients[i] = true;
+            }
+        }
 
-        check_school(distributor_schools, check_schools, queue, num_checks);
+        num_recipients -= max_distributor;
     }
 
-    out << num_distributor << '\n';
+    out << num_distributors << '\n';
 
-    in.close();
-    out.close();
+    bool* schools = new bool[num_schools]();
+    std::vector<std::vector<int>> connection_components;
+
+    for (int i = 0; i < num_schools; i++) {
+        if (!schools[i]) {
+            std::vector<int> connection_component;
+
+            for (int j = 0; j < num_schools; j++) {
+                if (distributor_matrix[i][j] && distributor_matrix[j][i]) {
+                    schools[j] = true;
+                    connection_component.push_back(j);
+                }
+            }
+
+            connection_components.push_back(connection_component);
+        }
+    }
+
+    int num_components = connection_components.size();
+
+    if (num_components == 1) {
+        out << 0;
+
+        in.close();
+        out.close();
+
+        return 0;
+    }
+
+    bool* is_distributor_components = new bool[num_components]();
+    bool* is_recipients_components = new bool[num_components]();
+
+    for (int i = 0; i < num_components; i++) {
+        for (int j = i + 1; j < num_components; j++) {
+            for (int num_school1 : connection_components[i]) {
+                for (int num_school2 : connection_components[j]) {
+                    if (distributor_matrix[num_school1][num_school2]) {
+                        is_distributor_components[i] = true;
+                        is_recipients_components[j] = true;
+                    }
+
+                    if (distributor_matrix[num_school2][num_school1]) {
+                        is_distributor_components[j] = true;
+                        is_recipients_components[i] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    int num_not_distributor_components = 0;
+    int num_not_recipients_components = 0;
+
+    for (int i = 0; i < num_components; i++) {
+        if (!is_distributor_components[i]) {
+            num_not_distributor_components++;
+        }
+        if (!is_recipients_components[i]) {
+            num_not_recipients_components++;
+        }
+    }
+
+    out << std::max(num_not_distributor_components, num_not_recipients_components);
 
     return 0;
 }
