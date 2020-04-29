@@ -1,41 +1,45 @@
 #include <fstream>
+#include <algorithm>
 #include <vector>
-#include <queue>
 
-std::vector<std::vector<int>> routes;
+int* list;
+int** arc_list;
+int num_start_node;
+int num_finish_node;
+int length_min_way;
+int length_second_min_way;
+std::vector<std::vector<int>> ways;
+std::vector<std::vector<int>> cycles;
 
-void dfs(std::vector<std::pair<int, int>>* graph, std::queue<std::pair<int, int>>& queue, bool* is_check_node, int num_node, int num_destination_node) {
-    if (queue.empty()) {
-        return;
-    }
-
-    if (num_node == num_destination_node) {
-        std::vector<int> rout;
-        int length = 0;
-
-        while (!queue.empty()) {
-            rout.push_back(queue.front().first);
-            length += queue.front().second;
-
-            queue.pop();
+void dfs(std::vector<int>& way, int num_node) {
+    if (num_node == num_finish_node) {
+        if (way[0] < length_min_way) {
+            length_second_min_way = length_min_way;
+            length_min_way = way[0];
+        } else if (way[0] > length_min_way && way[0] < length_second_min_way) {
+            length_second_min_way = way[0];
         }
 
-        rout.push_back(length);
-        routes.push_back(rout);
-
-        return;
+        ways.push_back(way);
     }
 
-    is_check_node[num_node] = true;
+    int num_next_arc = list[num_node];
+    int num_next_node = arc_list[num_next_arc][0];
 
-    for (std::pair<int, int>& pair : graph[num_node]) {
-        if (!is_check_node[pair.first]) {
-            std::queue<std::pair<int, int>> new_queue = std::queue(queue);
+    while (num_next_node != 0) {
+        if (std::find(way.begin(), way.end(), num_next_arc) == way.end()) {
+            std::vector<int> new_way(way);
 
-            new_queue.push(pair);
+            new_way.push_back(num_next_arc);
+            new_way[0] += arc_list[num_next_arc][1];
 
-            dfs(graph, new_queue, is_check_node, pair.first, num_destination_node);
+            dfs(new_way, num_next_node);
+        } else {
+            cycles.push_back(way);
         }
+
+        num_next_arc = arc_list[num_next_arc][2];
+        num_next_node = arc_list[num_next_arc][0];
     }
 }
 
@@ -43,45 +47,73 @@ int main() {
     std::ifstream in("input.in");
     std::ofstream out("output.out");
 
-    int num_cities;
-    int num_roads;
+    int num_nodes;
+    int num_arcs;
 
-    in >> num_cities >> num_roads;
+    in >> num_nodes >> num_arcs;
 
-    auto* graph = new std::vector<std::pair<int, int>>[num_cities];
+    list = new int[num_nodes + 1]();
+    arc_list = new int*[num_arcs + 1];
 
-    for (int i = 0; i < num_roads; i++) {
-        int num_city1;
-        int num_city2;
-        int length;
+    arc_list[0] = new int[3]();
 
-        in >> num_city1 >> num_city2 >> length;
+    for (int i = 1; i <= num_arcs; i++) {
+        int num_node1;
+        int num_node2;
+        int weight;
 
-        graph[num_city1 - 1].emplace_back(num_city2 - 1, length);
+        in >> num_node1 >> num_node2 >> weight;
+        arc_list[i] = new int[3]();
+
+        arc_list[i][0] = num_node2;
+        arc_list[i][1] = weight;
+        arc_list[i][2] = list[num_node1];
+
+        list[num_node1] = i;
     }
 
-    int num_city1;
-    int num_city2;
+    in >> num_start_node >> num_finish_node;
 
-    in >> num_city1 >> num_city2;
+    std::vector<int> start_way;
+    length_min_way = INT_MAX;
 
-    num_city1--;
-    num_city2--;
+    start_way.push_back(0);
 
-    std::queue<std::pair<int, int>> queue;
-    bool* is_check_node = new bool[num_cities]();
+    dfs(start_way, num_start_node);
 
-    queue.push(std::pair<int, int>(num_city1, 0));
-
-    dfs(graph, queue, is_check_node, num_city1, num_city2);
-
-    for (std::vector<int>& rout : routes) {
-        for (int city : rout) {
-            out << city << ' ';
+    for (std::vector<int>& way : ways) {
+        for (int num_arc : way) {
+            out << num_arc << ' ';
         }
 
         out << '\n';
     }
+
+    out << length_min_way << ' ' << length_second_min_way << '\n';
+
+    for (std::vector<int>& cycle : cycles) {
+        for (int num_arc : cycle) {
+            out << num_arc << ' ';
+        }
+
+        out << '\n';
+    }
+
+//    for (int i = 1; i < num_nodes + 1; i++) {
+//        out << list[i] << ' ';
+//    }
+//
+//    out << '\n';
+//
+//    for (int i = 1; i < num_arcs + 1; i++) {
+//        for (int j = 0; j < 3; j++) {
+//            out << arc_list[i][j] << ' ';
+//        }
+//
+//        out << '\n';
+//    }
+
+
 
     in.close();
     out.close();
