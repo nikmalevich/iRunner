@@ -1,76 +1,62 @@
-#pragma comment(linker, "/STACK:16777216")
-
 #include <fstream>
 #include <queue>
+
+struct dijkstra_vertex {
+    int number;
+    int length;
+    dijkstra_vertex* parent;
+};
 
 std::vector<std::pair<int, int>>* adjacency_list;
 int num_start_vertex;
 int num_finish_vertex;
-auto cmp = [](std::pair<int, int> first, std::pair<int, int> second) {
-    return first.second > second.second;
+auto cmp = [](dijkstra_vertex* first, dijkstra_vertex* second) {
+    return first->length > second->length;
 };
 int* is_check_vertices;
 int result_length;
 std::vector<int> result_way;
 
-void dijkstra(std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int>>, decltype(cmp)>& queue) {
+void dijkstra(std::priority_queue<dijkstra_vertex*, std::vector<dijkstra_vertex*>, decltype(cmp)>& queue) {
     if (queue.empty()) {
         return;
     }
 
-    auto cur_pair = queue.top();
+    auto cur_vertex = queue.top();
 
     queue.pop();
 
-    if (is_check_vertices[cur_pair.first] != 2) {
-        is_check_vertices[cur_pair.first]++;
+    if (is_check_vertices[cur_vertex->number] != 2) {
+        is_check_vertices[cur_vertex->number]++;
 
         if (is_check_vertices[num_finish_vertex] == 2) {
-            result_length = cur_pair.second;
+            result_length = cur_vertex->length;
+
+            dijkstra_vertex* cur_parent = cur_vertex;
+
+            while (cur_parent != nullptr) {
+                result_way.push_back(cur_parent->number);
+
+                cur_parent = cur_parent->parent;
+            }
 
             return;
         }
 
-        for (auto& pair : adjacency_list[cur_pair.first]) {
+        for (auto& pair : adjacency_list[cur_vertex->number]) {
             if (is_check_vertices[pair.first] != 2) {
-                queue.push(std::pair<int, int>(pair.first, cur_pair.second + pair.second));
+                auto* vertex = new dijkstra_vertex;
+
+                vertex->number = pair.first;
+                vertex->length = pair.second + cur_vertex->length;
+                vertex->parent = cur_vertex;
+
+                queue.push(vertex);
             }
         }
     }
 
     dijkstra(queue);
-}
-
-void dfs(std::vector<int>& way, int num_vertex) {
-    if ((num_vertex == num_finish_vertex) && (way[0] == result_length)) {
-        result_way = std::vector<int>(way);
-
-        return;
-    }
-
-    is_check_vertices[num_vertex]++;
-
-    for (auto& pair : adjacency_list[num_vertex]) {
-        int way_size = way.size();
-        int way_length = way[0];
-
-        if ((is_check_vertices[pair.first] != 2) && (way[0] + pair.second <= result_length)) {
-            way.push_back(pair.first);
-            way[0] += pair.second;
-
-            dfs(way, pair.first);
-
-            if (!result_way.empty()) {
-                return;
-            }
-        }
-
-        way[0] = way_length;
-
-        while (way.size() > way_size) {
-            way.pop_back();
-        }
-    }
 }
 
 int main() {
@@ -100,28 +86,25 @@ int main() {
     num_start_vertex--;
     num_finish_vertex--;
 
-    std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int>>, decltype(cmp)> queue(cmp);
+    std::priority_queue<dijkstra_vertex*, std::vector<dijkstra_vertex*>, decltype(cmp)> queue(cmp);
     is_check_vertices = new int[num_vertices]();
+    auto* start_vertex = new dijkstra_vertex;
 
-    queue.push(std::pair<int, int>(num_start_vertex, 0));
+    start_vertex->number = num_start_vertex;
+    start_vertex->length = 0;
+    start_vertex->parent = nullptr;
+
+    queue.push(start_vertex);
 
     dijkstra(queue);
 
-    std::vector<int> way;
-
-    way.push_back(0);
-    way.push_back(num_start_vertex);
-    std::fill(is_check_vertices, is_check_vertices + num_vertices, 0);
-
-    dfs(way, num_start_vertex);
-
     out << result_length << '\n';
 
-    for (int i = 1; i < result_way.size() - 1; i++) {
+    for (int i = result_way.size() - 1; i > 0; i--) {
         out << result_way[i] + 1 << ' ';
     }
 
-    out << result_way[result_way.size() - 1] + 1;
+    out << num_finish_vertex + 1;
 
     in.close();
     out.close();
