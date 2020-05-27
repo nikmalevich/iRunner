@@ -12,7 +12,7 @@ struct Node {
     }
 };
 
-bool back_left_bypass(Node* node, int min, int max) {
+bool back_left_bypass(Node* node, long long min, long long max) {
     if (node != nullptr) {
         if ((node->key < min) || (node->key >= max)) {
             return false;
@@ -62,7 +62,7 @@ int main() {
         nodes[i] = node;
     }
 
-    if (back_left_bypass(root, -INT_MAX, INT_MAX)) {
+    if (back_left_bypass(root, LONG_LONG_MIN, LONG_LONG_MAX)) {
         out << "YES";
     }
     else {
