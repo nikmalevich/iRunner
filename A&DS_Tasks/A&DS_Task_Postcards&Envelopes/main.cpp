@@ -1,17 +1,16 @@
+#define _USE_MATH_DEFINES
+
 #include <fstream>
 #include <vector>
 #include <cmath>
 
 int num_postcards;
 int* postcards_for_envelopes;
-bool* is_packed_postcards;
-int num_left_pack;
-int num_packed;
-bool** adjacency_matrix;
 int* envelopes_for_postcards;
+bool** adjacency_matrix;
 
 bool is_fit(const std::pair<int, int>& postcard, const std::pair<int, int>& envelope) {
-    int postcard_diag2 = postcard.first * postcard.first + postcard.second * postcard.second;
+    double postcard_diag = sqrt(postcard.first * postcard.first + postcard.second * postcard.second);
     int max_envelope_side;
     int min_envelope_side;
     int max_postcard_side;
@@ -35,59 +34,48 @@ bool is_fit(const std::pair<int, int>& postcard, const std::pair<int, int>& enve
         min_postcard_side = postcard.first;
     }
 
-    double new_postcard_x1 = sqrt(1. * (postcard_diag2 - max_envelope_side * max_envelope_side) / 4);
-
-    if (new_postcard_x1 == 0) {
-        return max_envelope_side == min_postcard_side;
+    if ((max_postcard_side <= max_envelope_side) && (min_postcard_side <= min_envelope_side)) {
+        return true;
     }
 
-    if (new_postcard_x1 != new_postcard_x1) {
-        return (max_postcard_side <= max_envelope_side && min_postcard_side <= min_envelope_side);
+    if (max_postcard_side * min_postcard_side > max_envelope_side * min_envelope_side) {
+        return false;
     }
 
-    double tg_a = 1. * max_envelope_side / 2 / new_postcard_x1;
-    double cos_a2 = 1 / (1 + tg_a * tg_a);
-    double sin_a2 = 1 - cos_a2;
-    double new_postcard_x2 = sqrt(cos_a2) * max_postcard_side / 2 + sqrt(sin_a2) * min_postcard_side / 2;
+    double bde = asin(1. * max_envelope_side / postcard_diag);
+    double bdc = asin(1. * min_postcard_side / postcard_diag);
+    double cde = bde - bdc;
+    double daf = M_PI - cde;
+    double caf = M_PI - daf - bdc;
 
-    return (max_postcard_side <= max_envelope_side && min_postcard_side <= min_envelope_side) || (2 * new_postcard_x2 <= min_envelope_side);
+    double result = cos(caf) * postcard_diag;
+
+    return result <= min_envelope_side;
 }
 
-void light_packing(int start_index) {
-    bool is_pack;
+bool dfs(int num_vertex, bool* is_check) {
+    for (int i = 0; i < num_postcards; i++) {
+        if (adjacency_matrix[num_vertex][i] && !is_check[i]) {
+            is_check[i] = true;
 
-    do {
-        is_pack = false;
+            if (envelopes_for_postcards[i] == -1) {
+                postcards_for_envelopes[num_vertex] = i;
+                envelopes_for_postcards[i] = num_vertex;
 
-        for (int i = start_index; i < num_postcards; i++) {
-            if ((postcards_for_envelopes[i] == 0) && !is_packed_postcards[i]) {
-                is_packed_postcards[i] = true;
-                num_left_pack--;
+                return true;
             }
+            else {
+                if (dfs(envelopes_for_postcards[i], is_check)) {
+                    postcards_for_envelopes[num_vertex] = i;
+                    envelopes_for_postcards[i] = num_vertex;
 
-            if (postcards_for_envelopes[i] == 1) {
-                is_pack = true;
-                is_packed_postcards[i] = true;
-                num_left_pack--;
-                num_packed++;
-
-                int num_envelope = 0;
-
-                while (adjacency_matrix[i][num_envelope] == 0) {
-                    num_envelope++;
-                }
-
-                envelopes_for_postcards[num_envelope] = INT_MAX;
-
-                for (int j = start_index; j < num_postcards; j++) {
-                    if (adjacency_matrix[j][num_envelope]) {
-                        adjacency_matrix[j][num_envelope] = false;
-                        postcards_for_envelopes[j]--;
-                    }
+                    return true;
                 }
             }
         }
-    } while (is_pack);
+    }
+
+    return false;
 }
 
 int main() {
@@ -114,57 +102,39 @@ int main() {
     }
 
     adjacency_matrix = new bool*[num_postcards];
-    postcards_for_envelopes = new int[num_postcards]();
-    envelopes_for_postcards = new int[num_postcards]();
 
     for (int i = 0; i < num_postcards; i++) {
         adjacency_matrix[i] = new bool[num_postcards]();
 
         for (int j = 0; j < num_postcards; j++) {
-            if (is_fit(postcards[i], envelopes[j])) {
-                adjacency_matrix[i][j] = true;
-                postcards_for_envelopes[i]++;
-                envelopes_for_postcards[j]++;
-            }
+            adjacency_matrix[i][j] = is_fit(postcards[i], envelopes[j]);
         }
     }
 
-    is_packed_postcards = new bool[num_postcards]();
-    num_packed = 0;
-    num_left_pack = num_postcards;
-
-    light_packing(0);
+    bool is_found;
+    int num_packed = 0;
+    postcards_for_envelopes = new int[num_postcards];
+    envelopes_for_postcards = new int[num_postcards];
 
     for (int i = 0; i < num_postcards; i++) {
-        if (!is_packed_postcards[i]) {
-            is_packed_postcards[i] = true;
-            num_left_pack--;
-
-            int min_envelope = INT_MAX;
-            int index_min_envelope = 0;
-
-             for (int j = 0; j < num_postcards; j++) {
-                 if (adjacency_matrix[i][j] && envelopes_for_postcards[j] < min_envelope) {
-                     min_envelope = envelopes_for_postcards[j];
-                     index_min_envelope = j;
-                 }
-             }
-
-             if (min_envelope != INT_MAX) {
-                 envelopes_for_postcards[index_min_envelope] = INT_MAX;
-                 num_packed++;
-
-                 for (int j = 0; j < num_postcards; j++) {
-                     if (adjacency_matrix[j][index_min_envelope]) {
-                         adjacency_matrix[j][index_min_envelope] = false;
-                         postcards_for_envelopes[j]--;
-                     }
-                 }
-             }
-
-             light_packing(i + 1);
-        }
+        postcards_for_envelopes[i] = -1;
+        envelopes_for_postcards[i] = -1;
     }
+
+    do {
+        is_found = false;
+
+        for (int i = 0; i < num_postcards; i++) {
+            auto* is_check = new bool[num_postcards]();
+
+            if (postcards_for_envelopes[i] == -1) {
+                if (dfs(i, is_check)) {
+                    num_packed++;
+                    is_found = true;
+                }
+            }
+        }
+    } while (is_found);
 
     if (num_packed == num_postcards) {
         out << "YES";
